@@ -1,0 +1,125 @@
+Machine = [a, p]{
+	etat=2;
+	init=1;
+	1 = a;//active
+	0 = p;//passive
+
+	0->1[pAa];//pAa:passive à active, Aa :A active
+	1->0[aAp];//active à passive
+	0->0[pAp];//passive à passive
+	1->1[aAa];//active à active
+};;
+
+Jeton= [m0,m1,m2,trm]{
+    etat = 4;
+    init = 2;
+    0=m0;//la machine n°0
+    1=m1;//la machine n°1
+    2=m2;//la machine n°2
+    3=trm;//la ternimaison (état terminale)
+
+    2->2 [Ntrm];//jeton est en m2
+    1->1 [Ntrm];//jeton est en m1
+    0->0 [Ntrm];//jeton est en m0
+
+    2->1 [m2Am1];//m2 envoie le jeton à m1
+    1->0 [m1Am0];//m1 envoie le jeton à m0
+    0->3 [m0Atrm];//m0 envoie le jeton à l'etat terminale(trm)
+};;
+
+systeme =<Machine M0, Machine M1, Machine M2, Jeton J> {
+
+	/**Envoi du jeton de mi+1 à mi:
+	 * la machine qui envoie le jeton doit être passive d'où le pAp
+	 **/
+	<_,_,pAp,m2Am1>;//m2 envoi le jeton à m1
+	<_,pAp,_,m1Am0>;//m1 envoi le jeton à m0
+	<pAp,_,_,m0Atrm>;//m0 envoi le jeton à trm
+
+
+	/** Une machine peut passer spontanément de l'état active à l'état passive
+	 * le jeton ne doit pas se trouver sur l'état terminale(trm) d'où le Ntrm
+	 **/
+	<_,_,aAp,Ntrm>;//m2 devient passive
+	<_,aAp,_,Ntrm>;//m1 devient passive
+	<aAp,_,_,Ntrm>;//m0 devient passive
+
+
+	/**Envoi de message par les machines actives:
+	 * pour cela la machine qui envoie le message doit être active d'où le aAa et 
+	 * le jeton ne doit pas se trouver sur l'état terminale(trm) d'où le Ntrm
+	 * et la celle qui reçoi le message reste active ou le devient d'où le pAa
+	 **/
+
+	//Envoi de message par m2 vers m0 ou(exclusif) m1, 	
+	<pAa,_,aAa,Ntrm>;
+	<_,pAa,aAa,Ntrm>;
+
+	//Envoi de message par m1 vers m0 ou(exclusif) m2
+	<pAa,aAa,_,Ntrm>;
+	<_,aAa,pAa,Ntrm>;
+
+	//Envoi de message par m0 vers m1 ou(exclusif) m2
+	<aAa,pAa,_,Ntrm>;
+	<aAa,_,pAa,Ntrm>;
+};;
+
+/* CTL surete, equite faible/forte */ 
+
+systeme += surete <- AG(J.trm -> (M0.p && M1.p && M2.p));;
+systeme += equiteFaible <- AG((M0.p && M1.p && M2.p) -> EF(J.trm));;
+systeme += equiteForte <- AG((M0.p && M1.p && M2.p) -> AF(J.trm));;
+
+//todot algo2.dot systeme;;
+//todot algo2_surete.dot systeme;;
+//todot algo2_equiteFaible.dot systeme;;
+//todot algo2_equiteForte.dot systeme;;
+todot algo2_CTL.dot systeme;;
+
+/* Contre-exemple: bug */
+
+bug = systeme -> J.trm && (M1.a || M2.a);;
+todot algo2_bug_surete.dot bug;;
+
+
+/* LTL surete, equite */ 
+/*
+systeme += surete <- G(J.trm -> (M0.p && M1.p && M2.p));;
+systeme += equite <- G((M0.p && M1.p && M2.p) -> F(J.trm));;
+*/
+
+
+/* Automate */
+
+auto = automaton systeme;;
+
+nonsure= {
+     etat=2;
+     acc=1;
+     init=0;
+     0- !J.trm || (M0.p && M1.p && M2.p) -> 0;
+     0- (j.trm && !M1.p) || (J.trm && !M2.p) || (J.trm && !M0.p) ->1;
+     1- true ->1 [0];
+};;
+
+nonequitable= {
+     etat=2;
+     acc=1;
+     init=0;
+     0- true -> 0;
+     0- !J.trm && M0.p && M1.p && M2.p ->1;
+     1- !J.trm ->1 [0];
+};;
+
+
+inter_surete = nonsure && auto;;
+inter_eqauite = nonequitable && auto;;
+
+inter_surete = reduce inter_surete;;
+inter_eqauite = reduce inter_eqauite;;
+
+todot algo2_auto_nonsure.dot inter_surete;;
+todot algo2_auto_nonequitable.dot inter_eqauite;;
+
+
+/*Conclusion: L’état stable n'est pas toujours atteint car la formule de sûreté n'est pas vérifiée*/

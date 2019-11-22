@@ -1,0 +1,91 @@
+Machine = [a, p]{
+	etat=2;
+	init=1;
+	1 = a;//active
+	0 = p;//passive
+
+	0->1[pAa];//passive à active
+	1->0[aAp];//active à passive
+	0->0[pAp];//passive à passive
+	1->1[aAa];//active à active
+};;
+
+Jeton= [m0,m1,m2,trm]{
+    etat = 4;
+    init = 2;
+    0=m0;//la machine n°0
+    1=m1;//la machine n°1
+    2=m2;//la machine n°2
+    3=trm;//la ternimaison (état terminale)
+
+    2->1 [m2Am1];//M2 envoie le jeton à M1
+    1->0 [m1Am0];//M1 envoie le jeton à M0
+    0->3 [m0Atrm];//M0 envoie le jeton à l'etat terminale
+};;
+
+systeme =<Machine M0, Machine M1, Machine M2, Jeton J> {
+	//Envoi de jeton
+	//la machine qui envoie le jeton doit être passive d'où le pAp
+	<_,_,pAp,m2Am1>;//m2 envoi le jeton à m1 donc elle doit etre passive
+	<_,pAp,_,m1Am0>;//m1 envoi le jeton à m0 donc elle doit etre passive
+	<pAp,_,_,m0Atrm>;//m0 envoi le jeton à trm donc elle doit etre passive
+
+	<_,_,aAp,_>;//m2 devient passive
+	<_,aAp,_,_>;//m1 devient passive
+	<aAp,_,_,_>;//m0 devient passive
+};;
+
+/* CTL surete, equite faible/forte */ 
+
+systeme += surete <- AG(J.trm -> (M0.p && M1.p && M2.p));;
+systeme += equiteFaible <- AG((M0.p && M1.p && M2.p) -> EF(J.trm));;
+systeme += equiteForte <- AG((M0.p && M1.p && M2.p) -> AF(J.trm));;
+
+//todot algo1.dot systeme;;
+//todot algo1_surete.dot systeme;;
+//todot algo1_equiteFaible.dot systeme;;
+//todot algo1_equiteForte.dot systeme;;
+todot algo1_CTL.dot systeme;;
+
+/* LTL surete, equite*/ 
+/*
+systeme += surete <- G(J.trm -> (M0.p && M1.p && M2.p));;
+systeme += equite <- G((M0.p && M1.p && M2.p) -> F(J.trm));;
+*/
+
+
+
+/* Automate */
+
+auto = automaton systeme;;
+
+nonsure= {
+     etat=2;
+     acc=1;
+     init=0;
+     0- !J.trm && (M0.p && M1.p && M2.p) -> 0;
+     0- (j.trm && !M1.p) && (J.trm && !M2.p) && (J.trm && !M0.p) ->1;
+     1- true ->1 [0];
+};;
+
+nonequitable= {
+     etat=2;
+     acc=1;
+     init=0;
+     0- true -> 0;
+     0- !J.trm && M0.p && M1.p && M2.p ->1;
+     1- !J.trm ->1 [0];
+};;
+
+
+inter_surete = nonsure && auto;;
+inter_eqauite = nonequitable && auto;;
+
+inter_surete = reduce inter_surete;;
+inter_eqauite = reduce inter_eqauite;;
+
+todot algo1_auto_nonsure.dot inter_surete;;
+todot algo1_auto_nonequitable.dot inter_eqauite;;
+
+
+/*Conclusion: L’état stable est atteint car toutes les formules sont vérifiées*/
